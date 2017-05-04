@@ -142,6 +142,10 @@ module ActiveModel::Datastore
     id.present?
   end
 
+  def key
+    self.class.key(id)
+  end
+
   ##
   # Builds the Cloud Datastore entity with attributes from the Model object.
   #
@@ -151,12 +155,19 @@ module ActiveModel::Datastore
   #
   def build_entity(parent = nil)
     entity = CloudDatastore.dataset.entity self.class.name, id
+
     if parent.present?
-      raise ArgumentError, 'Must be a Key' unless parent.is_a? Google::Cloud::Datastore::Key
-      entity.key.parent = parent
+      if parent.is_a? Google::Cloud::Datastore::Key
+        entity.key.parent = parent
+      elsif parent.respond_to?(:key) && (parent_key = parent.key).is_a?(Google::Cloud::Datastore::Key)
+        entity.key.parent = parent_key
+      else
+        raise ArgumentError, 'Must be a Key or ActiveModel::Datastore instance'
+      end
     elsif parent?
       entity.key.parent = self.class.parent_key(parent_key_id)
     end
+
     entity_properties.each do |attr|
       entity[attr] = instance_variable_get("@#{attr}")
     end
@@ -211,6 +222,10 @@ module ActiveModel::Datastore
     #
     def parent_key(parent_id)
       CloudDatastore.dataset.key('Parent' + name, parent_id.to_i)
+    end
+
+    def key(id)
+      CloudDatastore.dataset.key(name, id.to_i)
     end
 
     ##
